@@ -6,31 +6,55 @@
 <style>
   body { margin:0; overflow:hidden; background:#0b1e2d; }
   canvas { display:block; margin:0 auto; background:#06131d; }
+  #controls { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); color:#cfe9ff; font-size:12px; opacity:0.85; }
 </style>
 </head>
 <body>
-<canvas id="game" width="400" height="600"></canvas>
+<canvas id="game"></canvas>
+<div id="controls">← →：移動 / 足場に当たるとジャンプ / 落ちると大きく後退</div>
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let player = { x:200, y:500, vx:0, vy:0, r:12 };
-let gravity = 0.4;
-let platforms = [];
-let cameraY = 0;
-let maxHeight = 0;
-
-// 足場生成（高いほど難しい）
-for(let i=0;i<100;i++){
-  platforms.push({ x:Math.random()*350, y:600 - i*100, w:80 - i*0.3, h:10 });
+// 画面サイズにフィット
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
+window.addEventListener("resize", resize);
+resize();
 
-let keys={};
+let player, platforms, cameraY, maxHeight, keys;
+
+function init(){
+  player = { x:canvas.width/2, y:canvas.height-100, vx:0, vy:0, r:12 };
+  cameraY = 0;
+  maxHeight = 0;
+  keys = {};
+
+  platforms = [];
+
+  // スタート足場（必ずいる）
+  platforms.push({ x:canvas.width/2 - 60, y:canvas.height - 50, w:120, h:12 });
+
+  // 上に生成
+  for(let i=1;i<120;i++){
+    platforms.push({
+      x:Math.random()*(canvas.width-100),
+      y:canvas.height - 50 - i*100,
+      w:80 - i*0.2,
+      h:10
+    });
+  }
+}
+init();
+
+let gravity = 0.4;
+
 document.addEventListener("keydown",e=>keys[e.key]=true);
 document.addEventListener("keyup",e=>keys[e.key]=false);
 
 function update(){
-  // 操作（クセ強め）
   if(keys["ArrowLeft"]) player.vx -= 0.6;
   if(keys["ArrowRight"]) player.vx += 0.6;
 
@@ -40,7 +64,7 @@ function update(){
 
   player.vx *= 0.92;
 
-  // 足場
+  // 足場判定
   platforms.forEach(p=>{
     if(player.x > p.x && player.x < p.x+p.w &&
        player.y+player.r > p.y && player.y+player.r < p.y+12 &&
@@ -49,61 +73,46 @@ function update(){
     }
   });
 
-  // 高さ記録
+  // 高さ
   if(-player.y > maxHeight) maxHeight = -player.y;
 
-  // カメラ
-  if(player.y < cameraY + 300){
-    cameraY = player.y - 300;
-  }
+  // カメラ（下は見切れないよう制限）
+  let targetY = player.y - canvas.height/2;
+  cameraY = Math.min(targetY, 0);
 
-  // 落下ペナルティ（壺男要素）
-  if(player.y > cameraY + 700){
-    player.y += 300; // 一気に下へ
-    player.vy = 5;
+  // 落下ペナルティ
+  if(player.y > cameraY + canvas.height + 100){
+    player.y += 400;
+    player.vy = 6;
   }
 }
 
 function drawPlayer(x,y){
-  // ちょっとマシな見た目
   ctx.fillStyle = "#7FDBFF";
-  ctx.beginPath();
-  ctx.arc(x, y, player.r, 0, Math.PI*2);
-  ctx.fill();
-
-  // 目
+  ctx.beginPath(); ctx.arc(x,y,player.r,0,Math.PI*2); ctx.fill();
   ctx.fillStyle = "#001f3f";
-  ctx.fillRect(x-4, y-2, 3, 3);
-  ctx.fillRect(x+1, y-2, 3, 3);
+  ctx.fillRect(x-4,y-2,3,3);
+  ctx.fillRect(x+1,y-2,3,3);
 }
 
 function draw(){
-  ctx.clearRect(0,0,400,600);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   ctx.save();
   ctx.translate(0, -cameraY);
 
-  // 足場
   ctx.fillStyle = "#3aa7ff";
-  platforms.forEach(p=>{
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-  });
+  platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
 
   drawPlayer(player.x, player.y);
 
   ctx.restore();
 
-  // UI
   ctx.fillStyle="white";
-  ctx.fillText("高さ: " + Math.floor(maxHeight), 10, 20);
+  ctx.fillText("高さ: " + Math.floor(maxHeight), 20, 30);
 }
 
-function loop(){
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
