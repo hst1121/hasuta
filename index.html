@@ -4,148 +4,174 @@
 <meta charset="UTF-8">
 <title>はすたの壺男クライミング 完成版</title>
 <style>
-  body { margin:0; overflow:hidden; background:#0b1e2d; }
-  canvas { display:block; margin:0 auto; background:#06131d; cursor:none; }
-  #controls { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); color:#cfe9ff; font-size:12px; }
+body{margin:0;overflow:hidden;background:#0a1622;}
+canvas{display:block;background:linear-gradient(#06131d,#0b1e2d);} 
+#ui{position:absolute;top:10px;left:10px;color:#cfe9ff;font-size:14px;}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="controls">マウスで棒を操作して「引っかけて登る」</div>
+<div id="ui">矢印：カーソル / Z：フック</div>
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const c=document.getElementById("game");
+const ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight;}resize();addEventListener("resize",resize);
 
-function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
-addEventListener("resize",resize); resize();
+let keys={},prevZ=false;
+addEventListener("keydown",e=>keys[e.key]=true);
+addEventListener("keyup",e=>keys[e.key]=false);
 
-let player, rocks, cameraY, mouse, hook=null, maxY=0;
+let player,rocks,cursor,hook=null,cameraY=0,maxY=0;
 
 function init(){
-  player={x:canvas.width/2,y:canvas.height-100,vx:0,vy:0,r:12};
-  cameraY=0;
-  mouse={x:0,y:0};
-
-  rocks=[];
-  let y=canvas.height-50;
-  for(let i=0;i<40;i++){
-    y -= 120 + Math.random()*40;
-    rocks.push({
-      x:Math.random()*(canvas.width-150),
-      y:y,
-      w:100+Math.random()*80,
-      h:20+Math.random()*20
-    });
-  }
+player={x:c.width/2,y:c.height-100,vx:0,vy:0,r:12};
+cursor={x:c.width/2,y:c.height/2,vx:0,vy:0};
+rocks=[];
+let y=c.height-40;
+for(let i=0;i<60;i++){
+ y-=100+Math.random()*60;
+ rocks.push({x:Math.random()*(c.width-200),y,w:120+Math.random()*60,h:20,angle:(Math.random()-0.5)*0.8});
+}
 }
 init();
 
-canvas.addEventListener("mousemove",e=>{
-  const rect=canvas.getBoundingClientRect();
-  mouse.x=e.clientX-rect.left;
-  mouse.y=e.clientY-rect.top;
-});
-
-let gravity=0.4;
+const gravity=0.45;
 
 function update(){
-  let dx = mouse.x - player.x;
-  let dy = (mouse.y+cameraY) - player.y;
-  let dist = Math.sqrt(dx*dx+dy*dy);
+// カーソル慣性
+if(keys["ArrowLeft"])cursor.vx-=0.6;
+if(keys["ArrowRight"])cursor.vx+=0.6;
+if(keys["ArrowUp"])cursor.vy-=0.6;
+if(keys["ArrowDown"])cursor.vy+=0.6;
 
-  // 引っかけ判定
-  if(!hook){
-    rocks.forEach(r=>{
-      if(mouse.x>r.x && mouse.x<r.x+r.w && (mouse.y+cameraY)>r.y && (mouse.y+cameraY)<r.y+r.h){
-        hook={x:mouse.x, y:mouse.y+cameraY};
-      }
-    });
-  }
+cursor.x+=cursor.vx;cursor.y+=cursor.vy;
+cursor.vx*=0.92;cursor.vy*=0.92;
 
-  // フックされてる場合
-  if(hook){
-    let hx = hook.x - player.x;
-    let hy = hook.y - player.y;
-    let d = Math.sqrt(hx*hx+hy*hy);
+cursor.x=Math.max(0,Math.min(c.width,cursor.x));
+cursor.y=Math.max(0,Math.min(c.height,cursor.y));
 
-    let force = 0.6;
-    player.vx += hx/d * force;
-    player.vy += hy/d * force;
+let worldCursorY=cursor.y+cameraY;
+let dx=cursor.x-player.x;
+let dy=worldCursorY-player.y;
+let dist=Math.hypot(dx,dy);
 
-    // 距離が伸びすぎたら外れる
-    if(d>200) hook=null;
-  }
-
-  // 通常押し
-  if(!hook && dist>0){
-    player.vx -= dx/dist*0.2;
-    player.vy -= dy/dist*0.2;
-  }
-
-  player.vy += gravity;
-  player.x += player.vx;
-  player.y += player.vy;
-
-  // 摩擦（壁接触）
+// フックトグル
+if(keys["z"]&&!prevZ){
+ if(hook){hook=null;}else{
   rocks.forEach(r=>{
-    if(player.x>r.x && player.x<r.x+r.w && player.y>r.y && player.y<r.y+r.h){
-      player.vx *= 0.5;
-      player.vy *= 0.2;
-    }
+   if(pointInRock(cursor.x,worldCursorY,r)){
+    hook={x:cursor.x,y:worldCursorY};
+   }
   });
+ }
+}
+prevZ=keys["z"];
 
-  player.vx *= 0.99;
-  player.vy *= 0.99;
+// フック物理
+if(hook){
+ let hx=hook.x-player.x;
+ let hy=hook.y-player.y;
+ let d=Math.hypot(hx,hy);
+ if(d>220){hook=null;}else{
+  player.vx+=hx/d*0.8;
+  player.vy+=hy/d*0.8;
+ }
+}else if(dist>0){
+ player.vx-=dx/dist*0.25;
+ player.vy-=dy/dist*0.25;
+}
 
-  // 落下で大幅リセット
-  if(player.y > cameraY + canvas.height + 200){
-    player.y += 800;
-    player.vy = 8;
-    hook=null;
-  }
+player.vy+=gravity;
+player.x+=player.vx;
+player.y+=player.vy;
 
-  if(-player.y > maxY) maxY = -player.y;
+// 岩との摩擦
+rocks.forEach(r=>{
+ if(pointInRock(player.x,player.y,r)){
+  player.vx*=0.4;
+  player.vy*=0.2;
+ }
+});
 
-  let targetY = player.y - canvas.height/2;
-  cameraY = Math.min(targetY, 0);
+player.vx*=0.99;player.vy*=0.99;
+
+// 落下ペナルティ
+if(player.y>cameraY+c.height+200){
+ player.y+=900;
+ player.vy=10;
+ hook=null;
+}
+
+if(-player.y>maxY)maxY=-player.y;
+
+// カメラ（遅延）
+let target=player.y-c.height/2;
+cameraY+=(Math.min(target,0)-cameraY)*0.08;
+}
+
+function pointInRock(px,py,r){
+// 回転逆変換
+let cx=r.x+r.w/2;
+let cy=r.y+r.h/2;
+let dx=px-cx;
+let dy=py-cy;
+let cos=Math.cos(-r.angle);
+let sin=Math.sin(-r.angle);
+let rx=dx*cos-dy*sin;
+let ry=dx*sin+dy*cos;
+return(rx>-r.w/2&&rx<r.w/2&&ry>-r.h/2&&ry<r.h/2);
 }
 
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.clearRect(0,0,c.width,c.height);
 
-  ctx.save();
-  ctx.translate(0,-cameraY);
-
-  // 岩
-  rocks.forEach(r=>{
-    ctx.fillStyle="#3aa7ff";
-    ctx.fillRect(r.x,r.y,r.w,r.h);
-  });
-
-  // プレイヤー
-  ctx.fillStyle="#7FDBFF";
-  ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
-
-  // 棒
-  ctx.strokeStyle="#ffffff";
-  ctx.beginPath();
-  ctx.moveTo(player.x,player.y);
-  ctx.lineTo(mouse.x,mouse.y+cameraY);
-  ctx.stroke();
-
-  // フック表示
-  if(hook){
-    ctx.fillStyle="#ff0";
-    ctx.beginPath(); ctx.arc(hook.x,hook.y,5,0,Math.PI*2); ctx.fill();
-  }
-
-  ctx.restore();
-
-  ctx.fillStyle="#fff";
-  ctx.fillText("高さ: "+Math.floor(maxY),20,30);
+// 背景粒
+for(let i=0;i<20;i++){
+ ctx.fillStyle="rgba(255,255,255,0.05)";
+ ctx.fillRect(Math.random()*c.width,Math.random()*c.height,2,2);
 }
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
-loop();
+ctx.save();
+ctx.translate(0,-cameraY);
+
+// 岩
+rocks.forEach(r=>{
+ ctx.save();
+ ctx.translate(r.x+r.w/2,r.y+r.h/2);
+ ctx.rotate(r.angle);
+ ctx.fillStyle="#3aa7ff";
+ ctx.fillRect(-r.w/2,-r.h/2,r.w,r.h);
+ ctx.restore();
+});
+
+// プレイヤー
+ctx.fillStyle="#7FDBFF";
+ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+
+// 棒
+ctx.strokeStyle="#fff";
+ctx.beginPath();
+ctx.moveTo(player.x,player.y);
+ctx.lineTo(cursor.x,cursor.y+cameraY);
+ctx.stroke();
+
+// フック
+if(hook){
+ ctx.fillStyle="#ff0";
+ ctx.beginPath();ctx.arc(hook.x,hook.y,5,0,Math.PI*2);ctx.fill();
+}
+
+ctx.restore();
+
+// カーソル
+ctx.strokeStyle="#fff";
+ctx.strokeRect(cursor.x-6,cursor.y-6,12,12);
+
+ctx.fillStyle="#fff";
+ctx.fillText("高さ: "+Math.floor(maxY),20,30);
+}
+
+function loop(){update();draw();requestAnimationFrame(loop);}loop();
 </script>
-<
+</body>
+</html>
