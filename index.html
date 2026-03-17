@@ -2,208 +2,295 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>壺男クライミング 完全版</title>
+<title>UNO CSSリアル版</title>
+
 <style>
-body{margin:0;overflow:hidden;background:#06131d;}
-canvas{display:block;}
-#ui{position:absolute;top:10px;left:10px;color:#cfe9ff;font-size:14px;}
+body {
+  margin: 0;
+  background: radial-gradient(circle, #1b5e20, #0d3b1e);
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+/* テーブル */
+#table {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* カード */
+.card {
+  width: 90px;
+  height: 140px;
+  border-radius: 14px;
+  position: absolute;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.7);
+  overflow: hidden;
+}
+
+/* 背景色 */
+.red { background: #d32f2f; }
+.blue { background: #1976d2; }
+.green { background: #388e3c; }
+.yellow { background: #fbc02d; color:black; }
+
+/* UNOっぽい楕円 */
+.card::before {
+  content: "";
+  position: absolute;
+  width: 140%;
+  height: 80%;
+  background: white;
+  border-radius: 50%;
+  top: 10%;
+  left: -20%;
+  transform: rotate(-25deg);
+}
+
+/* 中央数字 */
+.center {
+  position: absolute;
+  font-size: 42px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-10deg);
+}
+
+/* 角数字 */
+.corner {
+  position: absolute;
+  font-size: 16px;
+}
+.top-left { top: 6px; left: 8px; }
+.bottom-right { bottom: 6px; right: 8px; transform: rotate(180deg); }
+
+/* ワイルド */
+.wild {
+  background: linear-gradient(45deg, red, yellow, green, blue);
+  color: white;
+}
+
+/* 中央カード */
+#centerCard {
+  position: relative;
+  transform: scale(1.5);
+}
+
+/* 手札 */
+#playerHand {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 山札 */
+#deck {
+  position: absolute;
+  left: 35%;
+  top: 50%;
+  width: 90px;
+  height: 140px;
+  background: black;
+  border-radius: 14px;
+  border: 3px solid white;
+}
+
+/* ホバー */
+.card:hover {
+  transform: translateY(-20px) scale(1.1);
+  z-index: 10;
+}
+
+/* CPU */
+.cpu {
+  position: absolute;
+  color: white;
+}
+#cpu1 { top: 20px; left: 50%; transform: translateX(-50%); }
+#cpu2 { left: 20px; top: 50%; }
+#cpu3 { right: 20px; top: 50%; }
+
 </style>
 </head>
+
 <body>
-<canvas id="game"></canvas>
-<div id="ui">矢印：カーソル / Z：フック</div>
+
+<div id="deck"></div>
+<div id="table"><div id="centerCard"></div></div>
+
+<div id="playerHand"></div>
+
+<div id="cpu1" class="cpu"></div>
+<div id="cpu2" class="cpu"></div>
+<div id="cpu3" class="cpu"></div>
 
 <script>
-const c=document.getElementById("game");
-const ctx=c.getContext("2d");
+const colors=["red","blue","green","yellow"];
+let deck=[],players=[[],[],[],[]];
+let topCard,current=0;
 
-function resize(){c.width=innerWidth;c.height=innerHeight;}
-resize();addEventListener("resize",resize);
-
-let keys={},prevZ=false;
-addEventListener("keydown",e=>keys[e.key]=true);
-addEventListener("keyup",e=>keys[e.key]=false);
-
-let player,rocks,cursor,hook=null,cameraY=0,maxY=0;
-
-function init(){
-  player={x:c.width/2,y:c.height-120,vx:0,vy:0,r:12};
-  cursor={x:c.width/2,y:c.height/2,vx:0,vy:0};
-  rocks=[];
-
-  // ★ スタート足場（絶対必要）
-  rocks.push({
-    x:c.width/2-100,
-    y:c.height-60,
-    w:200,
-    h:20,
-    angle:0
+/* デッキ */
+function createDeck(){
+  deck=[];
+  colors.forEach(c=>{
+    for(let i=0;i<=9;i++){
+      deck.push({c,v:i});
+      if(i!==0) deck.push({c,v:i});
+    }
   });
+  shuffle(deck);
+}
 
-  let y=c.height-60;
-
-  for(let i=0;i<40;i++){
-    y-=120;
-    rocks.push({
-      x:Math.random()*(c.width-200),
-      y:y,
-      w:140,
-      h:20,
-      angle:(Math.random()-0.5)*0.6
-    });
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    let j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
   }
 }
-init();
 
-const gravity=0.45;
-
-function pointInRock(px,py,r){
-  let cx=r.x+r.w/2;
-  let cy=r.y+r.h/2;
-  let dx=px-cx;
-  let dy=py-cy;
-  let cos=Math.cos(-r.angle);
-  let sin=Math.sin(-r.angle);
-  let rx=dx*cos-dy*sin;
-  let ry=dx*sin+dy*cos;
-  return(rx>-r.w/2&&rx<r.w/2&&ry>-r.h/2&&ry<r.h/2);
+function deal(){
+  for(let i=0;i<4;i++){
+    players[i]=[];
+    for(let j=0;j<7;j++) players[i].push(deck.pop());
+  }
+  topCard=deck.pop();
 }
 
-function update(){
-  // カーソル慣性
-  if(keys["ArrowLeft"])cursor.vx-=0.6;
-  if(keys["ArrowRight"])cursor.vx+=0.6;
-  if(keys["ArrowUp"])cursor.vy-=0.6;
-  if(keys["ArrowDown"])cursor.vy+=0.6;
+/* カード生成 */
+function makeCard(c){
+  let el=document.createElement("div");
+  el.className="card "+c.c;
 
-  cursor.x+=cursor.vx;
-  cursor.y+=cursor.vy;
-  cursor.vx*=0.9;
-  cursor.vy*=0.9;
+  el.innerHTML=`
+    <div class="corner top-left">${c.v}</div>
+    <div class="center">${c.v}</div>
+    <div class="corner bottom-right">${c.v}</div>
+  `;
+  return el;
+}
 
-  cursor.x=Math.max(0,Math.min(c.width,cursor.x));
-  cursor.y=Math.max(0,Math.min(c.height,cursor.y));
+/* 描画 */
+function render(){
+  let center=document.getElementById("centerCard");
+  center.innerHTML="";
+  center.appendChild(makeCard(topCard));
 
-  let worldCursorY=cursor.y+cameraY;
-  let dx=cursor.x-player.x;
-  let dy=worldCursorY-player.y;
-  let dist=Math.hypot(dx,dy);
+  renderHand();
+  for(let i=1;i<=3;i++){
+    document.getElementById("cpu"+i).innerText=
+      "CPU"+i+" ("+players[i].length+")";
+  }
+}
 
-  // フック（トグル）
-  if(keys["z"]&&!prevZ){
-    if(hook){
-      hook=null;
+/* 手札（扇） */
+function renderHand(){
+  let hand=document.getElementById("playerHand");
+  hand.innerHTML="";
+
+  let spread=35;
+  players[0].forEach((c,i)=>{
+    let el=makeCard(c);
+
+    let offset=i-(players[0].length/2);
+    el.style.left=(offset*spread+300)+"px";
+    el.style.transform=`rotate(${offset*6}deg)`;
+
+    el.onclick=()=>play(i,el);
+    hand.appendChild(el);
+  });
+}
+
+/* 出せる */
+function canPlay(c){
+  return c.c===topCard.c || c.v===topCard.v;
+}
+
+/* プレイ（アニメーション） */
+function play(i,el){
+  if(current!==0) return;
+  let c=players[0][i];
+  if(!canPlay(c)) return;
+
+  let rect=el.getBoundingClientRect();
+  let clone=el.cloneNode(true);
+  document.body.appendChild(clone);
+
+  clone.style.left=rect.left+"px";
+  clone.style.top=rect.top+"px";
+
+  setTimeout(()=>{
+    clone.style.left="55%";
+    clone.style.top="45%";
+    clone.style.transform="rotate(0deg)";
+  },10);
+
+  setTimeout(()=>{
+    clone.remove();
+    topCard=c;
+    players[0].splice(i,1);
+    next();
+  },400);
+}
+
+/* ドロー演出 */
+function drawCard(i){
+  let c=deck.pop();
+  players[i].push(c);
+
+  let deckEl=document.getElementById("deck");
+  let rect=deckEl.getBoundingClientRect();
+
+  let el=makeCard(c);
+  document.body.appendChild(el);
+
+  el.style.left=rect.left+"px";
+  el.style.top=rect.top+"px";
+
+  setTimeout(()=>{
+    el.style.left="50%";
+    el.style.top="80%";
+  },10);
+
+  setTimeout(()=>el.remove(),400);
+}
+
+/* CPU */
+function cpu(i){
+  let idx=players[i].findIndex(canPlay);
+  if(idx>=0){
+    topCard=players[i][idx];
+    players[i].splice(idx,1);
+  }else{
+    drawCard(i);
+  }
+}
+
+/* ターン */
+function next(){
+  current=(current+1)%4;
+
+  setTimeout(()=>{
+    if(current!==0){
+      cpu(current);
+      render();
+      next();
     }else{
-      for(let r of rocks){
-        if(pointInRock(cursor.x,worldCursorY,r)){
-          hook={x:cursor.x,y:worldCursorY};
-          break;
-        }
-      }
+      render();
     }
-  }
-  prevZ=keys["z"];
-
-  // フック物理
-  if(hook){
-    let hx=hook.x-player.x;
-    let hy=hook.y-player.y;
-    let d=Math.hypot(hx,hy);
-
-    if(d>220){
-      hook=null;
-    }else{
-      player.vx+=hx/d*0.8;
-      player.vy+=hy/d*0.8;
-    }
-  }else if(dist>0){
-    player.vx-=dx/dist*0.25;
-    player.vy-=dy/dist*0.25;
-  }
-
-  player.vy+=gravity;
-  player.x+=player.vx;
-  player.y+=player.vy;
-
-  // 摩擦
-  for(let r of rocks){
-    if(pointInRock(player.x,player.y,r)){
-      player.vx*=0.4;
-      player.vy*=0.2;
-    }
-  }
-
-  player.vx*=0.99;
-  player.vy*=0.99;
-
-  // 落下ペナルティ
-  if(player.y>cameraY+c.height+200){
-    player.y+=800;
-    player.vy=8;
-    hook=null;
-  }
-
-  if(-player.y>maxY)maxY=-player.y;
-
-  let target=player.y-c.height/2;
-  cameraY+=(Math.min(target,0)-cameraY)*0.1;
+  },600);
 }
 
-function draw(){
-  // 背景
-  ctx.fillStyle="#06131d";
-  ctx.fillRect(0,0,c.width,c.height);
-
-  ctx.save();
-  ctx.translate(0,-cameraY);
-
-  // 岩
-  for(let r of rocks){
-    ctx.save();
-    ctx.translate(r.x+r.w/2,r.y+r.h/2);
-    ctx.rotate(r.angle);
-    ctx.fillStyle="#3aa7ff";
-    ctx.fillRect(-r.w/2,-r.h/2,r.w,r.h);
-    ctx.restore();
-  }
-
-  // プレイヤー
-  ctx.fillStyle="#7FDBFF";
-  ctx.beginPath();
-  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
-  ctx.fill();
-
-  // 棒
-  ctx.strokeStyle="#fff";
-  ctx.beginPath();
-  ctx.moveTo(player.x,player.y);
-  ctx.lineTo(cursor.x,cursor.y+cameraY);
-  ctx.stroke();
-
-  // フック
-  if(hook){
-    ctx.fillStyle="#ff0";
-    ctx.beginPath();
-    ctx.arc(hook.x,hook.y,5,0,Math.PI*2);
-    ctx.fill();
-  }
-
-  ctx.restore();
-
-  // カーソル
-  ctx.strokeStyle="#fff";
-  ctx.strokeRect(cursor.x-6,cursor.y-6,12,12);
-
-  ctx.fillStyle="#fff";
-  ctx.fillText("高さ: "+Math.floor(maxY),20,30);
-}
-
-function loop(){
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-loop();
+createDeck();
+deal();
+render();
 </script>
+
 </body>
 </html>
