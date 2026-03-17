@@ -58,6 +58,29 @@ let dist=Math.hypot(dx,dy);
 // フックトグル
 if(keys["z"]&&!prevZ){
  if(hook){hook=null;}else{
+  let found=false;
+  for(let r of rocks){
+   if(pointInRock(cursor.x,worldCursorY,r)){
+    hook={x:cursor.x,y:worldCursorY};
+    found=true;
+    break;
+   }
+  }
+  // 近くの岩にも吸着（当たりやすくする）
+  if(!found){
+    let best=null,bd=9999;
+    for(let r of rocks){
+      let cx=r.x+r.w/2;
+      let cy=r.y+r.h/2;
+      let d=Math.hypot(cursor.x-cx,worldCursorY-cy);
+      if(d<bd){bd=d;best=r;}
+    }
+    if(best && bd<120){
+      hook={x:best.x+best.w/2,y:best.y+best.h/2};
+    }
+  }
+ }
+}else{
   rocks.forEach(r=>{
    if(pointInRock(cursor.x,worldCursorY,r)){
     hook={x:cursor.x,y:worldCursorY};
