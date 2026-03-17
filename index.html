@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>はすたの壺男クライミング 完成版</title>
+<title>壺男風 完成版</title>
 <style>
 body{margin:0;overflow:hidden;background:#0a1622;}
 canvas{display:block;background:linear-gradient(#06131d,#0b1e2d);} 
@@ -30,7 +30,7 @@ rocks=[];
 let y=c.height-40;
 for(let i=0;i<60;i++){
  y-=100+Math.random()*60;
- rocks.push({x:Math.random()*(c.width-200),y,w:120+Math.random()*60,h:20,angle:(Math.random()-0.5)*0.8});
+ rocks.push({x:Math.random()*(c.width-200), y:y, w:120+Math.random()*60, h:20, angle:(Math.random()-0.5)*0.8});
 }
 }
 init();
