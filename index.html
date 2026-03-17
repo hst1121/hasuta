@@ -2,127 +2,155 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>はすたの発狂クライミング</title>
+<title>はすたの発狂クライミング PRO</title>
 <style>
-  body { margin:0; overflow:hidden; background:#0b1e2d; }
-  canvas { display:block; margin:0 auto; background:#06131d; }
-  #controls { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); color:#cfe9ff; font-size:12px; opacity:0.85; }
+  body { margin:0; overflow:hidden; background:linear-gradient(#06131d,#0b1e2d); }
+  canvas { display:block; margin:0 auto; }
+  #controls { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); color:#cfe9ff; font-size:12px; opacity:0.8; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="controls">← →：移動 / 足場に当たるとジャンプ / 落ちると大きく後退</div>
+<div id="controls">← →：移動 / ジャンプは自動 / 落ちると絶望</div>
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// 画面サイズにフィット
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener("resize", resize);
-resize();
+function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
+addEventListener("resize",resize); resize();
 
-let player, platforms, cameraY, maxHeight, keys;
+let player, platforms, cameraY, maxHeight, keys, particles, goalY, cleared;
 
 function init(){
-  player = { x:canvas.width/2, y:canvas.height-100, vx:0, vy:0, r:12 };
-  cameraY = 0;
-  maxHeight = 0;
-  keys = {};
+  cleared=false;
+  player={x:canvas.width/2,y:canvas.height-100,vx:0,vy:0,r:14};
+  cameraY=0; maxHeight=0; keys={}; particles=[];
 
-  platforms = [];
+  platforms=[];
+  platforms.push({x:canvas.width/2-60,y:canvas.height-50,w:120,h:14});
 
-  // スタート足場（必ずいる）
-  platforms.push({ x:canvas.width/2 - 60, y:canvas.height - 50, w:120, h:12 });
+  let lastX=canvas.width/2-60;
+  let lastY=canvas.height-50;
 
-  // 上に生成（必ず届く距離に調整）
-  let lastX = canvas.width/2 - 60;
-  let lastY = canvas.height - 50;
+  for(let i=1;i<150;i++){
+    let dx=(Math.random()-0.5)*140;
+    let dy=85+Math.random()*15;
 
-  for(let i=1;i<120;i++){
-    let dx = (Math.random() - 0.5) * 120; // 横ズレ制限
-    let dy = 70 + Math.random()*20; // 縦間隔（ジャンプ可能範囲）
+    let newX=Math.min(Math.max(lastX+dx,0),canvas.width-100);
+    let newY=lastY-dy;
 
-    let newX = Math.min(Math.max(lastX + dx, 0), canvas.width - 100);
-    let newY = lastY - dy;
-
-    platforms.push({
-      x:newX,
-      y:newY,
-      w:90,
-      h:10
-    });
-
-    lastX = newX;
-    lastY = newY;
-  });
+    platforms.push({x:newX,y:newY,w:80,h:12});
+    lastX=newX; lastY=newY;
   }
+
+  goalY = lastY - 100;
 }
 init();
 
-let gravity = 0.4;
-
-document.addEventListener("keydown",e=>keys[e.key]=true);
-document.addEventListener("keyup",e=>keys[e.key]=false);
+let gravity=0.45;
+addEventListener("keydown",e=>keys[e.key]=true);
+addEventListener("keyup",e=>keys[e.key]=false);
 
 function update(){
-  if(keys["ArrowLeft"]) player.vx -= 0.6;
-  if(keys["ArrowRight"]) player.vx += 0.6;
+  if(cleared) return;
+  if(keys["ArrowLeft"]) player.vx-=0.7;
+  if(keys["ArrowRight"]) player.vx+=0.7;
 
-  player.vy += gravity;
-  player.x += player.vx;
-  player.y += player.vy;
+  player.vy+=gravity;
+  player.x+=player.vx;
+  player.y+=player.vy;
+  player.vx*=0.9;
 
-  player.vx *= 0.92;
-
-  // 足場判定
   platforms.forEach(p=>{
-    if(player.x > p.x && player.x < p.x+p.w &&
-       player.y+player.r > p.y && player.y+player.r < p.y+12 &&
-       player.vy > 0){
-      player.vy = -10;
+    if(player.x>p.x && player.x<p.x+p.w && player.y+player.r>p.y && player.y+player.r<p.y+14 && player.vy>0){
+      player.vy=-11;
+      for(let i=0;i<5;i++) particles.push({x:player.x,y:player.y,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,t:20});
     }
   });
 
-  // 高さ
-  if(-player.y > maxHeight) maxHeight = -player.y;
+  if(-player.y>maxHeight) maxHeight=-player.y;
 
-  // カメラ（下は見切れないよう制限）
-  let targetY = player.y - canvas.height/2;
-  cameraY = Math.min(targetY, 0);
+  let targetY=player.y-canvas.height/2;
+  cameraY=Math.min(targetY,0);
 
-  // 落下ペナルティ
-  if(player.y > cameraY + canvas.height + 100){
-    player.y += 400;
-    player.vy = 6;
+  if(player.y>cameraY+canvas.height+120){
+    player.y+=500;
+    player.vy=6;
+  }
+
+  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.t--;});
+  particles=particles.filter(p=>p.t>0);
+
+  if(player.y < goalY){
+    cleared = true;
   }
 }
 
 function drawPlayer(x,y){
-  ctx.fillStyle = "#7FDBFF";
+  ctx.fillStyle="#7FDBFF";
   ctx.beginPath(); ctx.arc(x,y,player.r,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = "#001f3f";
-  ctx.fillRect(x-4,y-2,3,3);
-  ctx.fillRect(x+1,y-2,3,3);
+  ctx.fillStyle="#001f3f";
+  ctx.fillRect(x-5,y-3,3,3);
+  ctx.fillRect(x+2,y-3,3,3);
 }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
+  // 背景パーティクル
+  for(let i=0;i<20;i++){
+    ctx.fillStyle="rgba(255,255,255,0.05)";
+    ctx.fillRect(Math.random()*canvas.width,Math.random()*canvas.height,2,2);
+  }
+
   ctx.save();
-  ctx.translate(0, -cameraY);
+  ctx.translate(0,-cameraY);
 
-  ctx.fillStyle = "#3aa7ff";
-  platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+  // 足場グラデーション
+  platforms.forEach(p=>{
+    let g=ctx.createLinearGradient(p.x,p.y,p.x,p.y+p.h);
+    g.addColorStop(0,"#5ecbff");
+    g.addColorStop(1,"#1e90ff");
+    ctx.fillStyle=g;
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+  });
 
-  drawPlayer(player.x, player.y);
+  drawPlayer(player.x,player.y);
+
+  // パーティクル
+  particles.forEach(p=>{
+    ctx.fillStyle="#7FDBFF";
+    ctx.fillRect(p.x,p.y,2,2);
+  });
+
+    ctx.fillStyle = "#FFD700";
+  ctx.fillRect(canvas.width/2 - 50, goalY, 100, 10);
 
   ctx.restore();
 
-  ctx.fillStyle="white";
-  ctx.fillText("高さ: " + Math.floor(maxHeight), 20, 30);
+  ctx.fillStyle="#fff";
+  ctx.font="14px sans-serif";
+  ctx.fillText("高さ: "+Math.floor(maxHeight),20,30);
+
+  if(cleared){
+    // 画面暗転
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // 花火パーティクル
+    for(let i=0;i<50;i++){
+      ctx.fillStyle = `hsl(${Math.random()*360},100%,60%)`;
+      ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 3, 3);
+    }
+
+    // テキスト
+    ctx.fillStyle = "#fff";
+    ctx.font = "40px sans-serif";
+    ctx.fillText("CLEAR!!", canvas.width/2 - 80, canvas.height/2);
+
+    ctx.font = "16px sans-serif";
+    ctx.fillText("おめでとう！", canvas.width/2 - 50, canvas.height/2 + 30);
+  }
 }
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
