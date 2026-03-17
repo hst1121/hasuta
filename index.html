@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>壺男風 完成版</title>
+<title>はすたの壺男クライミング 完成版</title>
 <style>
 body{margin:0;overflow:hidden;background:#0a1622;}
 canvas{display:block;background:linear-gradient(#06131d,#0b1e2d);} 
@@ -146,6 +146,9 @@ return(rx>-r.w/2&&rx<r.w/2&&ry>-r.h/2&&ry<r.h/2);
 }
 
 function draw(){
+// 背景
+ctx.fillStyle = "#06131d";
+ctx.fillRect(0,0,c.width,c.height);
 ctx.clearRect(0,0,c.width,c.height);
 
 // 背景粒
