@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>はすたの登るゲーム</title>
+<title>はすたの発狂クライミング</title>
 <style>
   body { margin:0; overflow:hidden; background:#0b1e2d; }
   canvas { display:block; margin:0 auto; background:#06131d; }
@@ -14,13 +14,15 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let player = { x:200, y:500, vx:0, vy:0, r:10 };
-let gravity = 0.3;
+let player = { x:200, y:500, vx:0, vy:0, r:12 };
+let gravity = 0.4;
 let platforms = [];
 let cameraY = 0;
+let maxHeight = 0;
 
-for(let i=0;i<50;i++){
-  platforms.push({ x:Math.random()*350, y:600 - i*80, w:80, h:10 });
+// 足場生成（高いほど難しい）
+for(let i=0;i<100;i++){
+  platforms.push({ x:Math.random()*350, y:600 - i*100, w:80 - i*0.3, h:10 });
 }
 
 let keys={};
@@ -28,29 +30,51 @@ document.addEventListener("keydown",e=>keys[e.key]=true);
 document.addEventListener("keyup",e=>keys[e.key]=false);
 
 function update(){
-  // 左右移動
-  if(keys["ArrowLeft"]) player.vx -= 0.5;
-  if(keys["ArrowRight"]) player.vx += 0.5;
+  // 操作（クセ強め）
+  if(keys["ArrowLeft"]) player.vx -= 0.6;
+  if(keys["ArrowRight"]) player.vx += 0.6;
 
   player.vy += gravity;
   player.x += player.vx;
   player.y += player.vy;
 
-  player.vx *= 0.9;
+  player.vx *= 0.92;
 
-  // 足場判定
+  // 足場
   platforms.forEach(p=>{
     if(player.x > p.x && player.x < p.x+p.w &&
-       player.y+player.r > p.y && player.y+player.r < p.y+10 &&
+       player.y+player.r > p.y && player.y+player.r < p.y+12 &&
        player.vy > 0){
-      player.vy = -8; // ジャンプ
+      player.vy = -10;
     }
   });
+
+  // 高さ記録
+  if(-player.y > maxHeight) maxHeight = -player.y;
 
   // カメラ
   if(player.y < cameraY + 300){
     cameraY = player.y - 300;
   }
+
+  // 落下ペナルティ（壺男要素）
+  if(player.y > cameraY + 700){
+    player.y += 300; // 一気に下へ
+    player.vy = 5;
+  }
+}
+
+function drawPlayer(x,y){
+  // ちょっとマシな見た目
+  ctx.fillStyle = "#7FDBFF";
+  ctx.beginPath();
+  ctx.arc(x, y, player.r, 0, Math.PI*2);
+  ctx.fill();
+
+  // 目
+  ctx.fillStyle = "#001f3f";
+  ctx.fillRect(x-4, y-2, 3, 3);
+  ctx.fillRect(x+1, y-2, 3, 3);
 }
 
 function draw(){
@@ -59,23 +83,19 @@ function draw(){
   ctx.save();
   ctx.translate(0, -cameraY);
 
-  // プレイヤー
-  ctx.fillStyle = "#7FDBFF";
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
-  ctx.fill();
-
   // 足場
   ctx.fillStyle = "#3aa7ff";
   platforms.forEach(p=>{
     ctx.fillRect(p.x, p.y, p.w, p.h);
   });
 
+  drawPlayer(player.x, player.y);
+
   ctx.restore();
 
   // UI
   ctx.fillStyle="white";
-  ctx.fillText("高さ: " + Math.floor(-cameraY), 10, 20);
+  ctx.fillText("高さ: " + Math.floor(maxHeight), 10, 20);
 }
 
 function loop(){
