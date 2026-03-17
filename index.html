@@ -1,1 +1,141 @@
-蓮田のテスト
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>はすたのドットシューティングDX</title>
+  <style>
+    body { margin:0; background:#0b1e2d; overflow:hidden; font-family:monospace; color:#cfe9ff; text-align:center; }
+    canvas { display:block; margin:0 auto; background:#06131d; image-rendering:pixelated; border:3px solid #3aa7ff; border-radius:8px; }
+    #ui { position:absolute; top:10px; left:50%; transform:translateX(-50%); font-size:16px; letter-spacing:1px; }
+  </style>
+</head>
+<body>
+  <div id="ui">SCORE: <span id="score">0</span></div>
+  <canvas id="game" width="200" height="300"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scale=3; canvas.style.width=canvas.width*scale+"px"; canvas.style.height=canvas.height*scale+"px";
+
+let player={x:100,y:260};
+let bullets=[], enemies=[], enemyBullets=[], effects=[];
+let score=0, gameOver=false, keys={};
+let boss=null;
+
+// ---- SE（簡易ピコ音） ----
+const actx = new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq, time=0.05){
+  const o=actx.createOscillator(); const g=actx.createGain();
+  o.frequency.value=freq; o.type="square";
+  o.connect(g); g.connect(actx.destination);
+  o.start(); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+time);
+  o.stop(actx.currentTime+time);
+}
+
+// ---- 入力 ----
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+// ---- 生成 ----
+function spawnEnemy(){
+  enemies.push({x:Math.random()*180,y:0,hp:2});
+}
+
+function spawnBoss(){
+  boss={x:60,y:20,hp:100,phase:0};
+}
+
+// ---- 更新 ----
+function update(){
+  if(gameOver) return;
+
+  if(keys["ArrowLeft"]) player.x-=3;
+  if(keys["ArrowRight"]) player.x+=3;
+
+  if(keys[" "] && Math.random()<0.3){
+    bullets.push({x:player.x+4,y:player.y}); beep(600);
+  }
+
+  bullets.forEach(b=>b.y-=4);
+  enemies.forEach(e=>{
+    e.y+=1.2;
+    if(Math.random()<0.02){
+      enemyBullets.push({x:e.x,y:e.y,vy:2});
+    }
+  });
+
+  if(boss){
+    boss.phase+=0.05;
+    boss.x += Math.sin(boss.phase)*1.5;
+
+    if(Math.random()<0.2){
+      for(let a=0;a<Math.PI*2;a+=0.5){
+        enemyBullets.push({x:boss.x+8,y:boss.y+8,vx:Math.cos(a)*2,vy:Math.sin(a)*2});
+      }
+    }
+  }
+
+  enemyBullets.forEach(b=>{ b.x+=b.vx||0; b.y+=b.vy; });
+
+  // 衝突
+  bullets.forEach((b,bi)=>{
+    enemies.forEach((e,ei)=>{
+      if(Math.abs(b.x-e.x)<8 && Math.abs(b.y-e.y)<8){
+        e.hp--; bullets.splice(bi,1);
+        if(e.hp<=0){ enemies.splice(ei,1); score++; effects.push({x:e.x,y:e.y,t:10}); beep(200); }
+      }
+    });
+    if(boss && Math.abs(b.x-boss.x)<16 && Math.abs(b.y-boss.y)<16){
+      boss.hp--; bullets.splice(bi,1); beep(300);
+      if(boss.hp<=0){ boss=null; score+=50; }
+    }
+  });
+
+  enemyBullets.forEach(b=>{
+    if(Math.abs(player.x-b.x)<6 && Math.abs(player.y-b.y)<6){ gameOver=true; }
+  });
+
+  enemies.forEach(e=>{
+    if(Math.abs(player.x-e.x)<8 && Math.abs(player.y-e.y)<8){ gameOver=true; }
+  });
+
+  bullets=bullets.filter(b=>b.y>0);
+  enemyBullets=enemyBullets.filter(b=>b.y<300&&b.x>0&&b.x<200);
+  enemies=enemies.filter(e=>e.y<300);
+
+  effects.forEach(e=>e.t--);
+  effects=effects.filter(e=>e.t>0);
+
+  document.getElementById("score").textContent=score;
+
+  if(score>20 && !boss) spawnBoss();
+}
+
+// ---- 描画 ----
+function px(x,y,c){ ctx.fillStyle=c; ctx.fillRect(x,y,2,2); }
+
+function drawPlayer(x,y){ [" 11 ","1111","1111"," 11 "].forEach((r,dy)=>[...r].forEach((c,dx)=>{ if(c=="1") px(x+dx*2,y+dy*2,"#7FDBFF"); })); }
+function drawEnemy(x,y){ ["11","11"].forEach((r,dy)=>[...r].forEach((c,dx)=>{ if(c=="1") px(x+dx*2,y+dy*2,"#FF4136"); })); }
+function drawBoss(x,y){ const s=[" 1111 ","111111","111111"," 1111 "]; s.forEach((r,dy)=>[...r].forEach((c,dx)=>{ if(c=="1") px(x+dx*2,y+dy*2,"#FF851B"); })); }
+
+function drawExplosion(x,y,t){ for(let i=0;i<6;i++){ px(x+Math.random()*6,y+Math.random()*6,"#FFFF00"); } }
+
+function draw(){
+  ctx.clearRect(0,0,200,300);
+  drawPlayer(player.x,player.y);
+  bullets.forEach(b=>px(b.x,b.y,"#FFF"));
+  enemies.forEach(e=>drawEnemy(e.x,e.y));
+  if(boss) drawBoss(boss.x,boss.y);
+  enemyBullets.forEach(b=>px(b.x,b.y,"#FFDC00"));
+  effects.forEach(e=>drawExplosion(e.x,e.y,e.t));
+
+  if(gameOver){ ctx.fillStyle="#fff"; ctx.font="10px monospace"; ctx.fillText("GAME OVER",60,150); }
+}
+
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+setInterval(spawnEnemy,800);
+loop();
+</script>
+</body>
+</html>
