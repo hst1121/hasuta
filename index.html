@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>壺男クライミング 安定版</title>
+<title>壺男クライミング 完全版</title>
 <style>
 body{margin:0;overflow:hidden;background:#06131d;}
 canvas{display:block;}
@@ -12,11 +12,13 @@ canvas{display:block;}
 <body>
 <canvas id="game"></canvas>
 <div id="ui">矢印：カーソル / Z：フック</div>
+
 <script>
 const c=document.getElementById("game");
 const ctx=c.getContext("2d");
 
-function resize(){c.width=innerWidth;c.height=innerHeight;}resize();addEventListener("resize",resize);
+function resize(){c.width=innerWidth;c.height=innerHeight;}
+resize();addEventListener("resize",resize);
 
 let keys={},prevZ=false;
 addEventListener("keydown",e=>keys[e.key]=true);
@@ -25,148 +27,183 @@ addEventListener("keyup",e=>keys[e.key]=false);
 let player,rocks,cursor,hook=null,cameraY=0,maxY=0;
 
 function init(){
- player={x:c.width/2,y:c.height-120,vx:0,vy:0,r:12};
- cursor={x:c.width/2,y:c.height/2,vx:0,vy:0};
- rocks=[];
- let y=c.height-40;
- for(let i=0;i<40;i++){
-   y-=120;
-   rocks.push({x:Math.random()*(c.width-200),y:y,w:140,h:20,angle:(Math.random()-0.5)*0.6});
- }
+  player={x:c.width/2,y:c.height-120,vx:0,vy:0,r:12};
+  cursor={x:c.width/2,y:c.height/2,vx:0,vy:0};
+  rocks=[];
+
+  // ★ スタート足場（絶対必要）
+  rocks.push({
+    x:c.width/2-100,
+    y:c.height-60,
+    w:200,
+    h:20,
+    angle:0
+  });
+
+  let y=c.height-60;
+
+  for(let i=0;i<40;i++){
+    y-=120;
+    rocks.push({
+      x:Math.random()*(c.width-200),
+      y:y,
+      w:140,
+      h:20,
+      angle:(Math.random()-0.5)*0.6
+    });
+  }
 }
 init();
 
 const gravity=0.45;
 
 function pointInRock(px,py,r){
- let cx=r.x+r.w/2;
- let cy=r.y+r.h/2;
- let dx=px-cx;
- let dy=py-cy;
- let cos=Math.cos(-r.angle);
- let sin=Math.sin(-r.angle);
- let rx=dx*cos-dy*sin;
- let ry=dx*sin+dy*cos;
- return(rx>-r.w/2&&rx<r.w/2&&ry>-r.h/2&&ry<r.h/2);
+  let cx=r.x+r.w/2;
+  let cy=r.y+r.h/2;
+  let dx=px-cx;
+  let dy=py-cy;
+  let cos=Math.cos(-r.angle);
+  let sin=Math.sin(-r.angle);
+  let rx=dx*cos-dy*sin;
+  let ry=dx*sin+dy*cos;
+  return(rx>-r.w/2&&rx<r.w/2&&ry>-r.h/2&&ry<r.h/2);
 }
 
 function update(){
- // カーソル慣性
- if(keys["ArrowLeft"])cursor.vx-=0.6;
- if(keys["ArrowRight"])cursor.vx+=0.6;
- if(keys["ArrowUp"])cursor.vy-=0.6;
- if(keys["ArrowDown"])cursor.vy+=0.6;
+  // カーソル慣性
+  if(keys["ArrowLeft"])cursor.vx-=0.6;
+  if(keys["ArrowRight"])cursor.vx+=0.6;
+  if(keys["ArrowUp"])cursor.vy-=0.6;
+  if(keys["ArrowDown"])cursor.vy+=0.6;
 
- cursor.x+=cursor.vx;cursor.y+=cursor.vy;
- cursor.vx*=0.9;cursor.vy*=0.9;
+  cursor.x+=cursor.vx;
+  cursor.y+=cursor.vy;
+  cursor.vx*=0.9;
+  cursor.vy*=0.9;
 
- cursor.x=Math.max(0,Math.min(c.width,cursor.x));
- cursor.y=Math.max(0,Math.min(c.height,cursor.y));
+  cursor.x=Math.max(0,Math.min(c.width,cursor.x));
+  cursor.y=Math.max(0,Math.min(c.height,cursor.y));
 
- let worldCursorY=cursor.y+cameraY;
- let dx=cursor.x-player.x;
- let dy=worldCursorY-player.y;
- let dist=Math.hypot(dx,dy);
+  let worldCursorY=cursor.y+cameraY;
+  let dx=cursor.x-player.x;
+  let dy=worldCursorY-player.y;
+  let dist=Math.hypot(dx,dy);
 
- // フック
- if(keys["z"]&&!prevZ){
-   if(hook){hook=null;}else{
-     for(let r of rocks){
-       if(pointInRock(cursor.x,worldCursorY,r)){
-         hook={x:cursor.x,y:worldCursorY};
-         break;
-       }
-     }
-   }
- }
- prevZ=keys["z"];
+  // フック（トグル）
+  if(keys["z"]&&!prevZ){
+    if(hook){
+      hook=null;
+    }else{
+      for(let r of rocks){
+        if(pointInRock(cursor.x,worldCursorY,r)){
+          hook={x:cursor.x,y:worldCursorY};
+          break;
+        }
+      }
+    }
+  }
+  prevZ=keys["z"];
 
- if(hook){
-   let hx=hook.x-player.x;
-   let hy=hook.y-player.y;
-   let d=Math.hypot(hx,hy);
-   if(d>220){hook=null;}else{
-     player.vx+=hx/d*0.8;
-     player.vy+=hy/d*0.8;
-   }
- }else if(dist>0){
-   player.vx-=dx/dist*0.25;
-   player.vy-=dy/dist*0.25;
- }
+  // フック物理
+  if(hook){
+    let hx=hook.x-player.x;
+    let hy=hook.y-player.y;
+    let d=Math.hypot(hx,hy);
 
- player.vy+=gravity;
- player.x+=player.vx;
- player.y+=player.vy;
+    if(d>220){
+      hook=null;
+    }else{
+      player.vx+=hx/d*0.8;
+      player.vy+=hy/d*0.8;
+    }
+  }else if(dist>0){
+    player.vx-=dx/dist*0.25;
+    player.vy-=dy/dist*0.25;
+  }
 
- // 摩擦
- for(let r of rocks){
-   if(pointInRock(player.x,player.y,r)){
-     player.vx*=0.4;
-     player.vy*=0.2;
-   }
- }
+  player.vy+=gravity;
+  player.x+=player.vx;
+  player.y+=player.vy;
 
- player.vx*=0.99;player.vy*=0.99;
+  // 摩擦
+  for(let r of rocks){
+    if(pointInRock(player.x,player.y,r)){
+      player.vx*=0.4;
+      player.vy*=0.2;
+    }
+  }
 
- // 落下
- if(player.y>cameraY+c.height+200){
-   player.y+=800;
-   player.vy=8;
-   hook=null;
- }
+  player.vx*=0.99;
+  player.vy*=0.99;
 
- if(-player.y>maxY)maxY=-player.y;
+  // 落下ペナルティ
+  if(player.y>cameraY+c.height+200){
+    player.y+=800;
+    player.vy=8;
+    hook=null;
+  }
 
- let target=player.y-c.height/2;
- cameraY+=(Math.min(target,0)-cameraY)*0.1;
+  if(-player.y>maxY)maxY=-player.y;
+
+  let target=player.y-c.height/2;
+  cameraY+=(Math.min(target,0)-cameraY)*0.1;
 }
 
 function draw(){
- // 背景
- ctx.fillStyle="#06131d";
- ctx.fillRect(0,0,c.width,c.height);
+  // 背景
+  ctx.fillStyle="#06131d";
+  ctx.fillRect(0,0,c.width,c.height);
 
- ctx.save();
- ctx.translate(0,-cameraY);
+  ctx.save();
+  ctx.translate(0,-cameraY);
 
- // 岩
- for(let r of rocks){
-   ctx.save();
-   ctx.translate(r.x+r.w/2,r.y+r.h/2);
-   ctx.rotate(r.angle);
-   ctx.fillStyle="#3aa7ff";
-   ctx.fillRect(-r.w/2,-r.h/2,r.w,r.h);
-   ctx.restore();
- }
+  // 岩
+  for(let r of rocks){
+    ctx.save();
+    ctx.translate(r.x+r.w/2,r.y+r.h/2);
+    ctx.rotate(r.angle);
+    ctx.fillStyle="#3aa7ff";
+    ctx.fillRect(-r.w/2,-r.h/2,r.w,r.h);
+    ctx.restore();
+  }
 
- // プレイヤー
- ctx.fillStyle="#7FDBFF";
- ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+  // プレイヤー
+  ctx.fillStyle="#7FDBFF";
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+  ctx.fill();
 
- // 棒
- ctx.strokeStyle="#fff";
- ctx.beginPath();
- ctx.moveTo(player.x,player.y);
- ctx.lineTo(cursor.x,cursor.y+cameraY);
- ctx.stroke();
+  // 棒
+  ctx.strokeStyle="#fff";
+  ctx.beginPath();
+  ctx.moveTo(player.x,player.y);
+  ctx.lineTo(cursor.x,cursor.y+cameraY);
+  ctx.stroke();
 
- // フック
- if(hook){
-   ctx.fillStyle="#ff0";
-   ctx.beginPath();ctx.arc(hook.x,hook.y,5,0,Math.PI*2);ctx.fill();
- }
+  // フック
+  if(hook){
+    ctx.fillStyle="#ff0";
+    ctx.beginPath();
+    ctx.arc(hook.x,hook.y,5,0,Math.PI*2);
+    ctx.fill();
+  }
 
- ctx.restore();
+  ctx.restore();
 
- // カーソル
- ctx.strokeStyle="#fff";
- ctx.strokeRect(cursor.x-6,cursor.y-6,12,12);
+  // カーソル
+  ctx.strokeStyle="#fff";
+  ctx.strokeRect(cursor.x-6,cursor.y-6,12,12);
 
- ctx.fillStyle="#fff";
- ctx.fillText("高さ: "+Math.floor(maxY),20,30);
+  ctx.fillStyle="#fff";
+  ctx.fillText("高さ: "+Math.floor(maxY),20,30);
 }
 
-function loop(){update();draw();requestAnimationFrame(loop);}loop();
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
 </script>
 </body>
 </html>
