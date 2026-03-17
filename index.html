@@ -37,14 +37,27 @@ function init(){
   // スタート足場（必ずいる）
   platforms.push({ x:canvas.width/2 - 60, y:canvas.height - 50, w:120, h:12 });
 
-  // 上に生成
+  // 上に生成（必ず届く距離に調整）
+  let lastX = canvas.width/2 - 60;
+  let lastY = canvas.height - 50;
+
   for(let i=1;i<120;i++){
+    let dx = (Math.random() - 0.5) * 120; // 横ズレ制限
+    let dy = 70 + Math.random()*20; // 縦間隔（ジャンプ可能範囲）
+
+    let newX = Math.min(Math.max(lastX + dx, 0), canvas.width - 100);
+    let newY = lastY - dy;
+
     platforms.push({
-      x:Math.random()*(canvas.width-100),
-      y:canvas.height - 50 - i*100,
-      w:80 - i*0.2,
+      x:newX,
+      y:newY,
+      w:90,
       h:10
     });
+
+    lastX = newX;
+    lastY = newY;
+  });
   }
 }
 init();
