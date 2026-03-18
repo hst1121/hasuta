@@ -2,294 +2,165 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>UNO CSSリアル版</title>
+<title>Undertale風 分岐版</title>
 
 <style>
 body {
   margin: 0;
-  background: radial-gradient(circle, #1b5e20, #0d3b1e);
-  overflow: hidden;
-  font-family: sans-serif;
-}
-
-/* テーブル */
-#table {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* カード */
-.card {
-  width: 90px;
-  height: 140px;
-  border-radius: 14px;
-  position: absolute;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.4s ease;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.7);
-  overflow: hidden;
-}
-
-/* 背景色 */
-.red { background: #d32f2f; }
-.blue { background: #1976d2; }
-.green { background: #388e3c; }
-.yellow { background: #fbc02d; color:black; }
-
-/* UNOっぽい楕円 */
-.card::before {
-  content: "";
-  position: absolute;
-  width: 140%;
-  height: 80%;
-  background: white;
-  border-radius: 50%;
-  top: 10%;
-  left: -20%;
-  transform: rotate(-25deg);
-}
-
-/* 中央数字 */
-.center {
-  position: absolute;
-  font-size: 42px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-10deg);
-}
-
-/* 角数字 */
-.corner {
-  position: absolute;
-  font-size: 16px;
-}
-.top-left { top: 6px; left: 8px; }
-.bottom-right { bottom: 6px; right: 8px; transform: rotate(180deg); }
-
-/* ワイルド */
-.wild {
-  background: linear-gradient(45deg, red, yellow, green, blue);
-  color: white;
-}
-
-/* 中央カード */
-#centerCard {
-  position: relative;
-  transform: scale(1.5);
-}
-
-/* 手札 */
-#playerHand {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-/* 山札 */
-#deck {
-  position: absolute;
-  left: 35%;
-  top: 50%;
-  width: 90px;
-  height: 140px;
   background: black;
-  border-radius: 14px;
-  border: 3px solid white;
-}
-
-/* ホバー */
-.card:hover {
-  transform: translateY(-20px) scale(1.1);
-  z-index: 10;
-}
-
-/* CPU */
-.cpu {
-  position: absolute;
   color: white;
+  font-family: monospace;
+  overflow: hidden;
 }
-#cpu1 { top: 20px; left: 50%; transform: translateX(-50%); }
-#cpu2 { left: 20px; top: 50%; }
-#cpu3 { right: 20px; top: 50%; }
 
+#game {
+  width: 640px;
+  height: 420px;
+  margin: 40px auto;
+  border: 4px solid white;
+  position: relative;
+}
+
+#player {
+  width: 18px;
+  height: 18px;
+  background: red;
+  position: absolute;
+  transform: rotate(45deg);
+}
+
+.bullet {
+  width: 10px;
+  height: 10px;
+  background: white;
+  position: absolute;
+  border-radius: 50%;
+}
+
+#text {
+  text-align: center;
+  margin-top: 10px;
+}
 </style>
 </head>
 
 <body>
 
-<div id="deck"></div>
-<div id="table"><div id="centerCard"></div></div>
+<div id="game">
+  <div id="player"></div>
+</div>
 
-<div id="playerHand"></div>
-
-<div id="cpu1" class="cpu"></div>
-<div id="cpu2" class="cpu"></div>
-<div id="cpu3" class="cpu"></div>
+<div id="text"></div>
 
 <script>
-const colors=["red","blue","green","yellow"];
-let deck=[],players=[[],[],[],[]];
-let topCard,current=0;
+const game=document.getElementById("game");
+const player=document.getElementById("player");
+const text=document.getElementById("text");
 
-/* デッキ */
-function createDeck(){
-  deck=[];
-  colors.forEach(c=>{
-    for(let i=0;i<=9;i++){
-      deck.push({c,v:i});
-      if(i!==0) deck.push({c,v:i});
-    }
-  });
-  shuffle(deck);
-}
+let px=300,py=200;
+let vx=0,vy=0;
+let hp=100,inv=0,time=0;
 
-function shuffle(a){
-  for(let i=a.length-1;i>0;i--){
-    let j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
-  }
-}
+let bullets=[];
+let keys={};
 
-function deal(){
-  for(let i=0;i<4;i++){
-    players[i]=[];
-    for(let j=0;j<7;j++) players[i].push(deck.pop());
-  }
-  topCard=deck.pop();
-}
+/* 分岐用 */
+let hits=0;
+let moveTime=0;
 
-/* カード生成 */
-function makeCard(c){
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+/* 弾 */
+function spawn(x,y,vx,vy){
   let el=document.createElement("div");
-  el.className="card "+c.c;
-
-  el.innerHTML=`
-    <div class="corner top-left">${c.v}</div>
-    <div class="center">${c.v}</div>
-    <div class="corner bottom-right">${c.v}</div>
-  `;
-  return el;
+  el.className="bullet";
+  game.appendChild(el);
+  bullets.push({x,y,vx,vy,el});
 }
 
-/* 描画 */
-function render(){
-  let center=document.getElementById("centerCard");
-  center.innerHTML="";
-  center.appendChild(makeCard(topCard));
-
-  renderHand();
-  for(let i=1;i<=3;i++){
-    document.getElementById("cpu"+i).innerText=
-      "CPU"+i+" ("+players[i].length+")";
+/* 攻撃 */
+function attack(){
+  for(let i=0;i<12;i++){
+    let a=i*Math.PI/6;
+    spawn(320,210,Math.cos(a)*2,Math.sin(a)*2);
   }
 }
 
-/* 手札（扇） */
-function renderHand(){
-  let hand=document.getElementById("playerHand");
-  hand.innerHTML="";
+/* ループ */
+function loop(){
+  time++;
 
-  let spread=35;
-  players[0].forEach((c,i)=>{
-    let el=makeCard(c);
-
-    let offset=i-(players[0].length/2);
-    el.style.left=(offset*spread+300)+"px";
-    el.style.transform=`rotate(${offset*6}deg)`;
-
-    el.onclick=()=>play(i,el);
-    hand.appendChild(el);
-  });
-}
-
-/* 出せる */
-function canPlay(c){
-  return c.c===topCard.c || c.v===topCard.v;
-}
-
-/* プレイ（アニメーション） */
-function play(i,el){
-  if(current!==0) return;
-  let c=players[0][i];
-  if(!canPlay(c)) return;
-
-  let rect=el.getBoundingClientRect();
-  let clone=el.cloneNode(true);
-  document.body.appendChild(clone);
-
-  clone.style.left=rect.left+"px";
-  clone.style.top=rect.top+"px";
-
-  setTimeout(()=>{
-    clone.style.left="55%";
-    clone.style.top="45%";
-    clone.style.transform="rotate(0deg)";
-  },10);
-
-  setTimeout(()=>{
-    clone.remove();
-    topCard=c;
-    players[0].splice(i,1);
-    next();
-  },400);
-}
-
-/* ドロー演出 */
-function drawCard(i){
-  let c=deck.pop();
-  players[i].push(c);
-
-  let deckEl=document.getElementById("deck");
-  let rect=deckEl.getBoundingClientRect();
-
-  let el=makeCard(c);
-  document.body.appendChild(el);
-
-  el.style.left=rect.left+"px";
-  el.style.top=rect.top+"px";
-
-  setTimeout(()=>{
-    el.style.left="50%";
-    el.style.top="80%";
-  },10);
-
-  setTimeout(()=>el.remove(),400);
-}
-
-/* CPU */
-function cpu(i){
-  let idx=players[i].findIndex(canPlay);
-  if(idx>=0){
-    topCard=players[i][idx];
-    players[i].splice(idx,1);
-  }else{
-    drawCard(i);
+  /* 移動 */
+  if(keys["ArrowUp"]||keys["ArrowDown"]||keys["ArrowLeft"]||keys["ArrowRight"]){
+    moveTime++;
   }
-}
 
-/* ターン */
-function next(){
-  current=(current+1)%4;
+  if(keys["ArrowUp"]) vy-=0.4;
+  if(keys["ArrowDown"]) vy+=0.4;
+  if(keys["ArrowLeft"]) vx-=0.4;
+  if(keys["ArrowRight"]) vx+=0.4;
 
-  setTimeout(()=>{
-    if(current!==0){
-      cpu(current);
-      render();
-      next();
-    }else{
-      render();
+  vx*=0.9; vy*=0.9;
+  px+=vx; py+=vy;
+
+  px=Math.max(0,Math.min(620,px));
+  py=Math.max(0,Math.min(400,py));
+
+  player.style.left=px+"px";
+  player.style.top=py+"px";
+
+  /* 弾 */
+  bullets.forEach(b=>{
+    b.x+=b.vx;
+    b.y+=b.vy;
+    b.el.style.left=b.x+"px";
+    b.el.style.top=b.y+"px";
+
+    if(inv<=0 &&
+      b.x<px+18 && b.x+10>px &&
+      b.y<py+18 && b.y+10>py){
+      hp-=2;
+      hits++;
+      inv=20;
     }
-  },600);
+  });
+
+  if(inv>0){
+    inv--;
+    player.style.opacity=(inv%4<2)?0.3:1;
+  }
+
+  /* 攻撃 */
+  if(time%80===0) attack();
+
+  /* 終了 */
+  if(hp<=0 || time>2000){
+    ending();
+    return;
+  }
+
+  requestAnimationFrame(loop);
 }
 
-createDeck();
-deal();
-render();
+/* エンディング分岐 */
+function ending(){
+  let result="";
+
+  if(hits>30){
+    result="😨 弱さエンド\nまだ早かったね";
+  }
+  else if(moveTime<200){
+    result="👁 観察エンド\n気づいたね？";
+  }
+  else{
+    result="💪 決意エンド\n君は残る資格がある";
+  }
+
+  text.innerText=result;
+}
+
+loop();
 </script>
 
 </body>
