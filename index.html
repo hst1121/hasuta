@@ -1,167 +1,200 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Undertale風 分岐版</title>
-
-<style>
-body {
-  margin: 0;
-  background: black;
-  color: white;
-  font-family: monospace;
-  overflow: hidden;
-}
-
-#game {
-  width: 640px;
-  height: 420px;
-  margin: 40px auto;
-  border: 4px solid white;
-  position: relative;
-}
-
-#player {
-  width: 18px;
-  height: 18px;
-  background: red;
-  position: absolute;
-  transform: rotate(45deg);
-}
-
-.bullet {
-  width: 10px;
-  height: 10px;
-  background: white;
-  position: absolute;
-  border-radius: 50%;
-}
-
-#text {
-  text-align: center;
-  margin-top: 10px;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>UNDERTALE Like Mini Game</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border: 4px solid #fff;
+        }
+        canvas {
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            height: 150px;
+            border: 4px solid #fff;
+            padding: 15px;
+            background: #000;
+            box-sizing: border-box;
+            font-size: 24px;
+            line-height: 1.5;
+        }
+    </style>
 </head>
-
 <body>
 
-<div id="game">
-  <div id="player"></div>
-</div>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="640" height="480"></canvas>
+        <div id="ui-layer">
+            <div id="text-box"></div>
+        </div>
+    </div>
 
-<div id="text"></div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const textBox = document.getElementById('text-box');
 
-<script>
-const game=document.getElementById("game");
-const player=document.getElementById("player");
-const text=document.getElementById("text");
+        // ゲームの状態
+        let state = 'DIALOG'; // DIALOG, BATTLE
+        let frame = 0;
 
-let px=300,py=200;
-let vx=0,vy=0;
-let hp=100,inv=0,time=0;
+        // プレイヤー設定
+        const player = {
+            x: 320,
+            y: 350,
+            size: 16,
+            speed: 4,
+            hp: 20,
+            maxHp: 20
+        };
 
-let bullets=[];
-let keys={};
+        // 敵の弾幕設定
+        let bullets = [];
+        const enemy = { name: "ナプスタブルック的ナニカ", hp: 100 };
 
-/* 分岐用 */
-let hits=0;
-let moveTime=0;
+        // キー入力管理
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
 
-document.addEventListener("keydown",e=>keys[e.key]=true);
-document.addEventListener("keyup",e=>keys[e.key]=false);
+        // テキスト演出用
+        let fullText = "＊ どこからか 音楽が きこえてくる...";
+        let displayText = "";
+        let textIndex = 0;
 
-/* 弾 */
-function spawn(x,y,vx,vy){
-  let el=document.createElement("div");
-  el.className="bullet";
-  game.appendChild(el);
-  bullets.push({x,y,vx,vy,el});
-}
+        function updateText() {
+            if (textIndex < fullText.length) {
+                displayText += fullText[textIndex];
+                textBox.innerText = displayText;
+                textIndex++;
+                setTimeout(updateText, 50);
+            } else {
+                // テキストが終わったら3秒後にバトルへ
+                if(state === 'DIALOG') {
+                    setTimeout(() => {
+                        state = 'BATTLE';
+                        fullText = "";
+                        textBox.innerText = "＊ ぜったいに よけろ！";
+                    }, 2000);
+                }
+            }
+        }
 
-/* 攻撃 */
-function attack(){
-  for(let i=0;i<12;i++){
-    let a=i*Math.PI/6;
-    spawn(320,210,Math.cos(a)*2,Math.sin(a)*2);
-  }
-}
+        function spawnBullet() {
+            if (frame % 20 === 0) {
+                bullets.push({
+                    x: Math.random() * 200 + 220,
+                    y: 200,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: 3,
+                    size: 8
+                });
+            }
+        }
 
-/* ループ */
-function loop(){
-  time++;
+        function update() {
+            frame++;
 
-  /* 移動 */
-  if(keys["ArrowUp"]||keys["ArrowDown"]||keys["ArrowLeft"]||keys["ArrowRight"]){
-    moveTime++;
-  }
+            if (state === 'BATTLE') {
+                // 移動制限（枠の中だけ）
+                if (keys['ArrowUp'] && player.y > 220) player.y -= player.speed;
+                if (keys['ArrowDown'] && player.y < 420) player.y += player.speed;
+                if (keys['ArrowLeft'] && player.x > 220) player.x -= player.speed;
+                if (keys['ArrowRight'] && player.x < 420) player.x += player.speed;
 
-  if(keys["ArrowUp"]) vy-=0.4;
-  if(keys["ArrowDown"]) vy+=0.4;
-  if(keys["ArrowLeft"]) vx-=0.4;
-  if(keys["ArrowRight"]) vx+=0.4;
+                spawnBullet();
 
-  vx*=0.9; vy*=0.9;
-  px+=vx; py+=vy;
+                // 弾の更新と衝突判定
+                bullets.forEach((b, i) => {
+                    b.x += b.vx;
+                    b.y += b.vy;
+                    
+                    // 当たり判定
+                    let dx = player.x - b.x;
+                    let dy = player.y - b.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < (player.size/2 + b.size/2)) {
+                        player.hp -= 0.1; // ダメージ
+                        bullets.splice(i, 1);
+                    }
+                });
 
-  px=Math.max(0,Math.min(620,px));
-  py=Math.max(0,Math.min(400,py));
+                // 画面外の弾を削除
+                bullets = bullets.filter(b => b.y < 450);
+            }
 
-  player.style.left=px+"px";
-  player.style.top=py+"px";
+            draw();
+            requestAnimationFrame(update);
+        }
 
-  /* 弾 */
-  bullets.forEach(b=>{
-    b.x+=b.vx;
-    b.y+=b.vy;
-    b.el.style.left=b.x+"px";
-    b.el.style.top=b.y+"px";
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if(inv<=0 &&
-      b.x<px+18 && b.x+10>px &&
-      b.y<py+18 && b.y+10>py){
-      hp-=2;
-      hits++;
-      inv=20;
-    }
-  });
+            // 敵の描画（ただの四角ですが、雰囲気で）
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(270, 50 + Math.sin(frame * 0.05) * 10, 100, 100);
 
-  if(inv>0){
-    inv--;
-    player.style.opacity=(inv%4<2)?0.3:1;
-  }
+            if (state === 'BATTLE') {
+                // 戦闘枠
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(210, 210, 220, 220);
 
-  /* 攻撃 */
-  if(time%80===0) attack();
+                // プレイヤー（ソウル）
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                // ハート型を描画
+                const x = player.x, y = player.y, s = player.size;
+                ctx.moveTo(x, y + s/4);
+                ctx.quadraticCurveTo(x, y, x - s/2, y);
+                ctx.quadraticCurveTo(x - s, y, x - s, y + s/2);
+                ctx.quadraticCurveTo(x - s, y + s, x, y + s * 1.5);
+                ctx.quadraticCurveTo(x + s, y + s, x + s, y + s/2);
+                ctx.quadraticCurveTo(x + s, y, x + s/2, y);
+                ctx.quadraticCurveTo(x, y, x, y + s/4);
+                ctx.fill();
 
-  /* 終了 */
-  if(hp<=0 || time>2000){
-    ending();
-    return;
-  }
+                // 弾
+                ctx.fillStyle = '#fff';
+                bullets.forEach(b => {
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
 
-  requestAnimationFrame(loop);
-}
+                // HPバー
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(210, 440, player.hp * 5, 15);
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.fillText(`HP: ${Math.ceil(player.hp)} / ${player.maxHp}`, 320, 453);
+            }
+        }
 
-/* エンディング分岐 */
-function ending(){
-  let result="";
-
-  if(hits>30){
-    result="😨 弱さエンド\nまだ早かったね";
-  }
-  else if(moveTime<200){
-    result="👁 観察エンド\n気づいたね？";
-  }
-  else{
-    result="💪 決意エンド\n君は残る資格がある";
-  }
-
-  text.innerText=result;
-}
-
-loop();
-</script>
-
+        // 初期化
+        updateText();
+        update();
+    </script>
 </body>
 </html>
